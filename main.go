@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -12,9 +13,11 @@ import (
 )
 
 const (
-	network = "unix"
+	network = "tcp"
 	// TODO - Allow overriding this with env variable
-	address = "avp.sock"
+	port = "7654"
+	// TODO - Allow overriding this with env variable
+	host = "host.docker.internal"
 )
 
 var awsEnvVarRegExp *regexp.Regexp
@@ -58,7 +61,7 @@ func (p *Proxy) Env(profile *string, env *[]string) error {
 }
 
 func serve() error {
-	if err := os.RemoveAll(address); err != nil {
+	if err := os.RemoveAll(host); err != nil {
 		return err
 	}
 
@@ -69,13 +72,13 @@ func serve() error {
 	}
 
 	rpc.HandleHTTP()
-	l, err := net.Listen(network, address)
+	l, err := net.Listen(network, fmt.Sprintf(":%s", port))
 	if err != nil {
 		return err
 	}
 	defer l.Close()
 
-	log.Printf("Listening at %s\n", address)
+	log.Printf("Listening at %s\n", port)
 
 	return http.Serve(l, nil)
 }
@@ -87,7 +90,7 @@ func call(args []string) error {
 
 	profile := args[0]
 
-	client, err := rpc.DialHTTP(network, address)
+	client, err := rpc.DialHTTP(network, fmt.Sprintf("%s:%s", host, port))
 	if err != nil {
 		return err
 	}
