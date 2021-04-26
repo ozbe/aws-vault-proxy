@@ -24,3 +24,21 @@ Execute command with proxy in container
 ```
 # aws-vault exec PROFILE -- COMMAND
 ```
+
+## Fake Vault
+
+Build
+```
+$ GOOS=darwin GOARCH=amd64 go build -o bin/fake-vault ./fake-vault
+```
+
+Start server
+```
+$ AWS_VAULT_PROXY_COMMAND=./bin/fake-vault go run . server
+```
+
+## Local Development
+
+```
+$ AWS_VAULT_PROXY_HOST=127.0.0.1 go run . exec profile -- ls
+```

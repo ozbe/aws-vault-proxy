@@ -13,23 +13,31 @@ import (
 )
 
 const (
+	defaultCommand = "aws-vault"
 	defaultNetwork = "tcp"
 	defaultHost    = "host.docker.internal"
 	defaultPort    = "7654"
 )
 
 const (
-	hostEnvKey = "AWS_VAULT_PROXY_HOST"
-	portEnvKey = "AWS_VAULT_PROXY_PORT"
+	commandEnvKey = "AWS_VAULT_PROXY_COMMAND"
+	hostEnvKey    = "AWS_VAULT_PROXY_HOST"
+	portEnvKey    = "AWS_VAULT_PROXY_PORT"
 )
 
 type config struct {
+	command string
 	network string
 	host    string
 	port    string
 }
 
 func newConfig() config {
+	command := defaultCommand
+	if val, ok := os.LookupEnv(commandEnvKey); ok {
+		command = val
+	}
+
 	host := defaultHost
 	if val, ok := os.LookupEnv(hostEnvKey); ok {
 		host = val
@@ -41,6 +49,7 @@ func newConfig() config {
 	}
 
 	return config{
+		command: command,
 		network: defaultNetwork,
 		host:    host,
 		port:    port,
@@ -76,11 +85,12 @@ func main() {
 }
 
 type Proxy struct {
+	command string
 }
 
 func (p *Proxy) Env(profile *string, env *[]string) error {
 	// FIXME - handle MFA (`Enter token for arn:aws:iam::ACCOUNTID:mfa/USER:`)`
-	output, err := exec.Command("aws-vault", "exec", *profile, "--", "env").Output()
+	output, err := exec.Command(p.command, "exec", *profile, "--", "env").Output()
 
 	if err != nil {
 		return err
@@ -95,7 +105,9 @@ func serve(conf config) error {
 		return err
 	}
 
-	proxy := new(Proxy)
+	proxy := &Proxy{
+		command: conf.command,
+	}
 	err := rpc.Register(proxy)
 	if err != nil {
 		return err
