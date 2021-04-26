@@ -13,12 +13,39 @@ import (
 )
 
 const (
-	network = "tcp"
-	// TODO - Allow overriding this with env variable
-	port = "7654"
-	// TODO - Allow overriding this with env variable
-	host = "host.docker.internal"
+	defaultNetwork = "tcp"
+	defaultHost    = "host.docker.internal"
+	defaultPort    = "7654"
 )
+
+const (
+	hostEnvKey = "AWS_VAULT_PROXY_HOST"
+	portEnvKey = "AWS_VAULT_PROXY_PORT"
+)
+
+type config struct {
+	network string
+	host    string
+	port    string
+}
+
+func newConfig() config {
+	host := defaultHost
+	if val, ok := os.LookupEnv(hostEnvKey); ok {
+		host = val
+	}
+
+	port := defaultPort
+	if val, ok := os.LookupEnv(portEnvKey); ok {
+		port = val
+	}
+
+	return config{
+		network: defaultNetwork,
+		host:    host,
+		port:    port,
+	}
+}
 
 var awsEnvVarRegExp *regexp.Regexp
 
@@ -31,12 +58,14 @@ func main() {
 		log.Fatal("Missing command.")
 	}
 
+	c := newConfig()
+
 	var err error
 	switch os.Args[1] {
 	case "server":
-		err = serve()
+		err = serve(c)
 	case "exec":
-		err = call(os.Args[2:])
+		err = call(c, os.Args[2:])
 	default:
 		log.Fatal("Unknown command.")
 	}
@@ -52,6 +81,7 @@ type Proxy struct {
 func (p *Proxy) Env(profile *string, env *[]string) error {
 	// FIXME - handle MFA (`Enter token for arn:aws:iam::ACCOUNTID:mfa/USER:`)`
 	output, err := exec.Command("aws-vault", "exec", *profile, "--", "env").Output()
+
 	if err != nil {
 		return err
 	}
@@ -60,8 +90,8 @@ func (p *Proxy) Env(profile *string, env *[]string) error {
 	return nil
 }
 
-func serve() error {
-	if err := os.RemoveAll(host); err != nil {
+func serve(conf config) error {
+	if err := os.RemoveAll(defaultHost); err != nil {
 		return err
 	}
 
@@ -72,25 +102,25 @@ func serve() error {
 	}
 
 	rpc.HandleHTTP()
-	l, err := net.Listen(network, fmt.Sprintf(":%s", port))
+	l, err := net.Listen(conf.network, fmt.Sprintf(":%s", conf.port))
 	if err != nil {
 		return err
 	}
 	defer l.Close()
 
-	log.Printf("Listening at %s\n", port)
+	log.Printf("Listening at %s\n", defaultPort)
 
 	return http.Serve(l, nil)
 }
 
-func call(args []string) error {
+func call(conf config, args []string) error {
 	if len(args) < 3 || args[1] != "--" {
 		return errors.New("invalid arguments length or format")
 	}
 
 	profile := args[0]
 
-	client, err := rpc.DialHTTP(network, fmt.Sprintf("%s:%s", host, port))
+	client, err := rpc.DialHTTP(conf.network, fmt.Sprintf("%s:%s", conf.host, conf.port))
 	if err != nil {
 		return err
 	}
