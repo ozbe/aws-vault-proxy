@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -109,26 +110,31 @@ func (p *Proxy) Env(profile *string, env *[]string) error {
 	}
 
 	buf := bufio.NewReader(stdout)
+	var line []byte
 	for {
-		line, _, err := buf.ReadLine()
-		if err == io.EOF {
+		segment, err := buf.ReadString(' ')
+		if err != nil && err != io.EOF {
 			break
 		}
 
-		if err != nil {
-			return err
-		}
+		line = append(line, segment...)
+		line = bytes.Trim(line, "\n")
 
-		if awsVaultMfaPromptRegExp.Match(line) {
+		if awsVaultMfaPromptRegExp.Match([]byte(line)) {
 			mfa, err := promptForMFA(string(line))
 			if err != nil {
 				return err
 			}
+			line = nil
 			go func(mfa string) {
 				_, err = stdin.Write([]byte(mfa + "\n"))
 			}(mfa)
-		} else if awsEnvVarRegExp.Match(line) {
+		} else if awsEnvVarRegExp.Match([]byte(line)) {
 			*env = append(*env, string(line))
+		}
+
+		if err == io.EOF {
+			break
 		}
 	}
 
