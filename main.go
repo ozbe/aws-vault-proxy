@@ -126,9 +126,7 @@ func (p *Proxy) Env(profile *string, env *[]string) error {
 				return err
 			}
 			line = nil
-			go func(mfa string) {
-				_, err = stdin.Write([]byte(mfa + "\n"))
-			}(mfa)
+			_, err = stdin.Write([]byte(mfa + "\n"))
 		} else if awsEnvVarRegExp.Match([]byte(line)) {
 			*env = append(*env, string(line))
 		}
