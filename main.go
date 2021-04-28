@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -57,9 +59,11 @@ func newConfig() config {
 }
 
 var awsEnvVarRegExp *regexp.Regexp
+var awsVaultMfaPromptRegExp *regexp.Regexp
 
 func init() {
 	awsEnvVarRegExp = regexp.MustCompile(`(?m)^AWS_.*`)
+	awsVaultMfaPromptRegExp = regexp.MustCompile(`^Enter token for arn:aws:iam::\d+:mfa/.+:`)
 }
 
 func main() {
@@ -89,15 +93,57 @@ type Proxy struct {
 }
 
 func (p *Proxy) Env(profile *string, env *[]string) error {
-	// FIXME - handle MFA (`Enter token for arn:aws:iam::ACCOUNTID:mfa/USER:`)`
-	output, err := exec.Command(p.command, "exec", *profile, "--", "env").Output()
-
+	cmd := exec.Command(p.command, "exec", *profile, "--", "env")
+	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return err
 	}
 
-	*env = awsEnvVarRegExp.FindAllString(string(output), -1)
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return err
+	}
+
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+
+	buf := bufio.NewReader(stdout)
+	for {
+		line, _, err := buf.ReadLine()
+		if err == io.EOF {
+			break
+		}
+
+		if err != nil {
+			return err
+		}
+
+		if awsVaultMfaPromptRegExp.Match(line) {
+			mfa, err := promptForMFA(string(line))
+			if err != nil {
+				return err
+			}
+			go func(mfa string) {
+				_, err = stdin.Write([]byte(mfa + "\n"))
+			}(mfa)
+		} else if awsEnvVarRegExp.Match(line) {
+			*env = append(*env, string(line))
+		}
+	}
+
+	if err := cmd.Wait(); err != nil {
+		return err
+	}
+
 	return nil
+}
+
+func promptForMFA(prompt string) (string, error) {
+	var mfa string
+	fmt.Println(prompt)
+	_, err := fmt.Scanln(&mfa)
+	return mfa, err
 }
 
 func serve(conf config) error {
