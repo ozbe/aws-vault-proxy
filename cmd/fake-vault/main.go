@@ -16,5 +16,5 @@ func main() {
 		}
 	}
 
-	fmt.Println("AWS_SUCCESS=true")
+	fmt.Println("ENV=debug\nAWS_SUCCESS=true")
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"encoding/gob"
 	"fmt"
 	"io"
 	"log"
@@ -42,7 +43,8 @@ func init() {
 func main() {
 	c := newConfig()
 
-	err := serve(c)
+	// err := serve(c)
+	err := listen(c)
 
 	if err != nil {
 		log.Fatal(err)
@@ -65,6 +67,78 @@ func newConfig() config {
 		network: defaultNetwork,
 		port:    port,
 	}
+}
+
+func listen(conf config) error {
+	l, err := net.Listen(conf.network, fmt.Sprintf(":%s", conf.port))
+	if err != nil {
+		return err
+	}
+	defer l.Close()
+
+	log.Printf("Listening at %s\n", defaultPort)
+
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			return err
+		}
+		go handleConnection(conf, conn)
+	}
+}
+
+// type Message struct {
+// 	Type string
+// 	Data interface{}
+// }
+
+type Cmd struct {
+	Args []string
+}
+
+// type Input struct {
+// 	bytes []byte
+// }
+
+// type Output struct {
+// 	bytes []byte
+// }
+
+// type Error struct {
+// 	bytes []byte
+// }
+
+// type Exit struct {
+// 	status int
+// }
+
+func handleConnection(conf config, conn net.Conn) {
+	if err := handleRequest(conf, conn, conn); err != nil {
+		log.Println(err)
+	}
+	conn.Close()
+}
+
+func handleRequest(conf config, r io.Reader, w io.Writer) error {
+	decoder := gob.NewDecoder(r)
+
+	var req Cmd
+	if err := decoder.Decode(&req); err != nil {
+		return err
+	}
+
+	cmd := exec.Command(conf.command, req.Args...)
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return err
+	}
+	go func(w io.Writer, r io.Reader) {
+		io.Copy(w, r)
+	}(stdin, r)
+	cmd.Stdout = w
+	cmd.Stderr = w
+
+	return cmd.Run()
 }
 
 type Proxy struct {
