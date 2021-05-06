@@ -8,7 +8,6 @@ import (
 	"io"
 	"log"
 	"net"
-	"net/rpc"
 	"os"
 	"os/exec"
 	"regexp"
@@ -69,7 +68,7 @@ func main() {
 	var err error
 	switch os.Args[1] {
 	case "exec":
-		err = ec(c, os.Args[2:])
+		err = execCmd(c, os.Args[2:])
 	default:
 		log.Fatal("Unknown command.")
 	}
@@ -83,7 +82,7 @@ type Cmd struct {
 	Args []string
 }
 
-func ec(conf config, args []string) error {
+func execCmd(conf config, args []string) error {
 	if len(args) < 3 || args[1] != "--" {
 		return errors.New("invalid arguments length or format")
 	}
@@ -104,10 +103,12 @@ func ec(conf config, args []string) error {
 	encoder := gob.NewEncoder(conn)
 	encoder.Encode(req)
 
+	// Copy user input
 	go func() {
 		io.Copy(conn, os.Stdin)
 	}()
 
+	// Filter output
 	var env []string
 	scanner := bufio.NewScanner(conn)
 	scanner.Split(scanWordsWithLeadingAndOneTrailingSpace)
@@ -153,34 +154,4 @@ func scanWordsWithLeadingAndOneTrailingSpace(data []byte, atEOF bool) (advance i
 	}
 	// Request more data.
 	return start, nil, nil
-}
-
-func execCmd(conf config, args []string) error {
-	if len(args) < 3 || args[1] != "--" {
-		return errors.New("invalid arguments length or format")
-	}
-
-	profile := args[0]
-
-	client, err := rpc.DialHTTP(conf.network, fmt.Sprintf("%s:%s", conf.host, conf.port))
-	if err != nil {
-		return err
-	}
-
-	var env []string
-	err = client.Call("Proxy.Env", &profile, &env)
-	if err != nil {
-		return err
-	}
-
-	ec := exec.Command(args[2], args[3:]...)
-	ec.Env = append(os.Environ(), env...)
-	ec.Stderr, ec.Stdout = os.Stderr, os.Stdout
-
-	err = ec.Run()
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
