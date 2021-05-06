@@ -1,7 +1,7 @@
 package main
 
 import (
-	"bytes"
+	"bufio"
 	"encoding/gob"
 	"errors"
 	"fmt"
@@ -12,6 +12,8 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"unicode"
+	"unicode/utf8"
 )
 
 const (
@@ -29,7 +31,7 @@ var envVarRegExp *regexp.Regexp
 var awsEnvVarRegExp *regexp.Regexp
 
 func init() {
-	// envVarRegExp = regexp.MustCompile(`(?m)^\w+\=\w+$`)
+	envVarRegExp = regexp.MustCompile(`(?m)^\w+\=\w+$`)
 	awsEnvVarRegExp = regexp.MustCompile(`(?m)^AWS_\w+\=\w+$`)
 }
 
@@ -106,16 +108,17 @@ func ec(conf config, args []string) error {
 		io.Copy(conn, os.Stdin)
 	}()
 
-	var buf bytes.Buffer
-	w := io.MultiWriter(
-		os.Stdout,
-		&buf,
-	)
+	var env []string
+	scanner := bufio.NewScanner(conn)
+	scanner.Split(scanWordsWithLeadingAndOneTrailingSpace)
 
-	io.Copy(w, conn)
-
-	// Filter out ^AWS
-	env := awsEnvVarRegExp.FindAllString(buf.String(), -1)
+	for scanner.Scan() {
+		if awsEnvVarRegExp.Match(scanner.Bytes()) {
+			env = append(env, string(scanner.Bytes()))
+		} else if !envVarRegExp.Match(scanner.Bytes()) {
+			os.Stdout.Write(scanner.Bytes())
+		}
+	}
 
 	// Run command
 	ec := exec.Command(args[2], args[3:]...)
@@ -123,6 +126,33 @@ func ec(conf config, args []string) error {
 	ec.Stderr, ec.Stdout = os.Stderr, os.Stdout
 
 	return ec.Run()
+}
+
+// Adapted from bufio.ScanWords
+func scanWordsWithLeadingAndOneTrailingSpace(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	// Scan leading spaces.
+	start := 0
+	for width := 0; start < len(data); start += width {
+		var r rune
+		r, width = utf8.DecodeRune(data[start:])
+		if !unicode.IsSpace(r) {
+			break
+		}
+	}
+	// Scan until space, marking end of word.
+	for width, i := 0, start; i < len(data); i += width {
+		var r rune
+		r, width = utf8.DecodeRune(data[i:])
+		if unicode.IsSpace(r) {
+			return i + width, data[0 : i+width], nil
+		}
+	}
+	// If we're at EOF, we have a final, non-empty, non-terminated word. Return it.
+	if atEOF && len(data) > start {
+		return len(data), data[0:], nil
+	}
+	// Request more data.
+	return start, nil, nil
 }
 
 func execCmd(conf config, args []string) error {
