@@ -10,17 +10,35 @@ $ ./build.sh
 
 ## Run
 
-Start proxy server
+Start proxy server:
 ```
-$ ./bin/aws-vault-proxy-amd64-darwin server
+$ ./bin/aws-vault-proxy-amd64-darwin
 ```
 
-Start container (in separate terminal)
+In separate terminal, start container:
 ```
-$ docker run -it --rm -v `pwd`/bin/aws-vault-proxy-amd64-linux:/usr/local/bin/aws-vault ubuntu
+$ docker run -it --rm -v `pwd`/bin/aws-vault-proxy-docker-exec-amd64-linux:/usr/local/bin/aws-vault ubuntu
 ```
 
 Execute command with proxy in container
 ```
 # aws-vault exec PROFILE -- COMMAND
+```
+
+## Fake Vault
+
+Build
+```
+$ GOOS=darwin GOARCH=amd64 go build -o bin/fake-vault ./cmd/fake-vault
+```
+
+Start server
+```
+$ AWS_VAULT_PROXY_COMMAND=./bin/fake-vault go run ./cmd/proxy
+```
+
+## Local Development
+
+```
+$ AWS_VAULT_PROXY_HOST=127.0.0.1 go run ./cmd/docker-exec exec profile -- ls
 ```
