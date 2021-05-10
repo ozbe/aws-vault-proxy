@@ -10,12 +10,12 @@ $ ./build.sh
 
 ## Run
 
-Start proxy server
+Start proxy server:
 ```
 $ ./bin/aws-vault-proxy-amd64-darwin
 ```
 
-Start container (in separate terminal)
+In separate terminal, start container:
 ```
 $ docker run -it --rm -v `pwd`/bin/aws-vault-proxy-docker-exec-amd64-linux:/usr/local/bin/aws-vault ubuntu
 ```
