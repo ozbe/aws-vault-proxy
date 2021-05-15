@@ -1,0 +1,33 @@
+name: Publish
+
+on: 
+  release:
+    types: [created]
+
+jobs:
+  publish:
+    name: Publish for ${{ matrix.os }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        project_path: ["./cmd/proxy", "./cmd/docker-exec"]
+        goos: [linux, windows, darwin]
+        goarch: amd64
+        exclude:
+          - project_path: "./cmd/docker-exec"
+            goos: windows
+            goarch: amd64
+          - project_path: "./cmd/docker-exec"
+            goos: darwin
+            goarch: amd64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Publish binaries to release
+        uses: wangyoucao577/go-release-action@v1.17
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          goos: ${{ matrix.goos }}
+          goarch: ${{ matrix.goarch }}
+          project_path: ${{ matrix.project_path }}
+          goversion: "1.16"

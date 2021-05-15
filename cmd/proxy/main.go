@@ -8,6 +8,8 @@ import (
 	"net"
 	"os"
 	"os/exec"
+
+	"github.com/ozbe/aws-vault-proxy/protocol"
 )
 
 const (
@@ -73,21 +75,17 @@ func listen(conf config) error {
 	}
 }
 
-type Cmd struct {
-	Args []string
-}
-
 func handleConnection(conf config, conn net.Conn) {
-	if err := handleRequest(conf, conn, conn); err != nil {
+	if err := handleRequest(conf, conn); err != nil {
 		log.Println(err)
 	}
 	conn.Close()
 }
 
-func handleRequest(conf config, r io.Reader, w io.Writer) error {
-	decoder := gob.NewDecoder(r)
+func handleRequest(conf config, conn net.Conn) error {
+	decoder := gob.NewDecoder(conn)
 
-	var req Cmd
+	var req protocol.Cmd
 	if err := decoder.Decode(&req); err != nil {
 		return err
 	}
@@ -97,12 +95,24 @@ func handleRequest(conf config, r io.Reader, w io.Writer) error {
 	if err != nil {
 		return err
 	}
+
+	stdinWriter := protocol.NewStdinWriter(stdin)
 	go func(w io.Writer, r io.Reader) {
 		io.Copy(w, r)
-	}(stdin, r)
-	cmd.Stdout = w
-	cmd.Stderr = w
+	}(stdinWriter, conn)
 
-	// FIXME - how does the client know about an error?
-	return cmd.Run()
+	cmd.Stdout = protocol.NewStdoutWriter(conn)
+	cmd.Stderr = protocol.NewStderrWriter(conn)
+
+	err = cmd.Run()
+
+	// TODO - determine which errors should go back to the client
+	encoder := gob.NewEncoder(conn)
+	var msg protocol.Msg = protocol.Exit{
+		ExitCode: cmd.ProcessState.ExitCode(),
+		Error:    nil,
+	}
+	err = encoder.Encode(&msg)
+
+	return err
 }

@@ -1,18 +1,17 @@
 package main
 
 import (
-	"bufio"
-	"encoding/gob"
 	"errors"
 	"fmt"
 	"io"
 	"log"
-	"net"
 	"os"
 	"os/exec"
 	"regexp"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/ozbe/aws-vault-proxy/proxy"
 )
 
 const (
@@ -68,7 +67,7 @@ func main() {
 	var err error
 	switch os.Args[1] {
 	case "exec":
-		err = execCmd(c, os.Args[2:])
+		err = runExec(c, os.Args[2:])
 	default:
 		log.Fatal("Unknown command.")
 	}
@@ -78,55 +77,102 @@ func main() {
 	}
 }
 
-type Cmd struct {
-	Args []string
-}
-
-func execCmd(conf config, args []string) error {
+func runExec(conf config, args []string) error {
 	if len(args) < 3 || args[1] != "--" {
 		return errors.New("invalid arguments length or format")
 	}
 
-	// PROFILE
-	profile := args[0]
-
-	// make tcp connection
-	conn, err := net.Dial(conf.network, fmt.Sprintf("%s:%s", conf.host, conf.port))
+	env, err := proxyExecEnv(conf, args[0])
 	if err != nil {
 		return err
 	}
 
-	// request `exec PROFILE -- env`
-	req := Cmd{
-		Args: []string{"exec", profile, "--", "env"},
-	}
-	encoder := gob.NewEncoder(conn)
-	encoder.Encode(req)
+	aws := findAWS(env)
 
-	// Copy user input
-	go func() {
-		io.Copy(conn, os.Stdin)
-	}()
+	return localExec(aws, args[2:])
+}
 
-	// Filter output
-	var env []string
-	scanner := bufio.NewScanner(conn)
-	scanner.Split(scanWordsWithLeadingAndOneTrailingSpace)
+func findAWS(env []string) []string {
+	aws := []string{}
 
-	for scanner.Scan() {
-		if awsEnvVarRegExp.Match(scanner.Bytes()) {
-			env = append(env, string(scanner.Bytes()))
-		} else if !envVarRegExp.Match(scanner.Bytes()) {
-			os.Stdout.Write(scanner.Bytes())
+	for _, e := range env {
+		if awsEnvVarRegExp.MatchString(e) {
+			aws = append(aws, e)
 		}
 	}
 
-	// Run command
-	ec := exec.Command(args[2], args[3:]...)
+	return aws
+}
+
+func proxyExecEnv(conf config, profile string) ([]string, error) {
+	w := NewFilterEnvWriter(os.Stdout)
+
+	p := proxy.NewClient(proxy.Config{
+		Network: conf.network,
+		Address: fmt.Sprintf("%s:%s", conf.host, conf.port),
+	})
+	pcmd := p.Cmd("exec", profile, "--", "env")
+	pcmd.Stdin = os.Stdin
+	pcmd.Stderr = os.Stderr
+	pcmd.Stdout = &w
+
+	if err := pcmd.Run(); err != nil {
+		return nil, err
+	}
+	return w.Env(), nil
+}
+
+func localExec(env []string, args []string) error {
+	ec := exec.Command(args[0], args[1:]...)
 	ec.Env = append(os.Environ(), env...)
 	ec.Stderr, ec.Stdout = os.Stderr, os.Stdout
 
 	return ec.Run()
+}
+
+type FilterEnvWriter struct {
+	inner     io.Writer
+	env       []string
+	remainder []byte
+}
+
+func NewFilterEnvWriter(w io.Writer) FilterEnvWriter {
+	return FilterEnvWriter{
+		inner: w,
+	}
+}
+
+func (w *FilterEnvWriter) Write(p []byte) (int, error) {
+	w.remainder = append(w.remainder, p...)
+	return len(p), w.filter(false)
+}
+
+func (w *FilterEnvWriter) Close() error {
+	return w.filter(true)
+}
+
+func (w *FilterEnvWriter) filter(atEOF bool) error {
+	for {
+		a, t, err := scanWordsWithLeadingAndOneTrailingSpace(w.remainder, atEOF)
+		if err != nil || t == nil {
+			return err
+		}
+
+		w.remainder = w.remainder[a:]
+		if envVarRegExp.Match(t) {
+			w.env = append(w.env, string(t))
+		} else {
+			_, err = w.inner.Write(t)
+
+			if err != nil {
+				return nil
+			}
+		}
+	}
+}
+
+func (w FilterEnvWriter) Env() []string {
+	return w.env
 }
 
 // Adapted from bufio.ScanWords
