@@ -165,7 +165,7 @@ func (w *FilterEnvWriter) filter(atEOF bool) error {
 			_, err = w.inner.Write(t)
 
 			if err != nil {
-				return nil
+				return err
 			}
 		}
 	}
