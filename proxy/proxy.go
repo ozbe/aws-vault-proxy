@@ -64,7 +64,7 @@ func (c *Cmd) Run() error {
 
 	// Stdout, stderr, exit
 	decoder := gob.NewDecoder(conn)
-	var msg protocol.Msg
+	var msg interface{}
 
 	for {
 		err = decoder.Decode(&msg)
@@ -86,7 +86,7 @@ func (c *Cmd) Run() error {
 				return m.Error
 			}
 		default:
-			return fmt.Errorf("unexpected msg type: %d", m.Type())
+			return fmt.Errorf("unexpected msg: %v", m)
 		}
 	}
 

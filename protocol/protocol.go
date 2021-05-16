@@ -18,58 +18,20 @@ func init() {
 	gob.Register(Exit{})
 }
 
-const (
-	cmdMsgType MsgType = iota
-	stdinMsgType
-	stdoutMsgType
-	stderrMsgType
-	exitMsgType
-)
-
-type MsgType = int
-
-type Msg interface {
-	Type() MsgType
-}
-
 type Cmd struct {
 	Args []string
-}
-
-var _ Msg = Cmd{}
-
-func (_ Cmd) Type() MsgType {
-	return cmdMsgType
 }
 
 type Stdin struct {
 	Data []byte
 }
 
-var _ Msg = Cmd{}
-
-func (_ Stdin) Type() MsgType {
-	return stdinMsgType
-}
-
 type Stdout struct {
 	Data []byte
 }
 
-var _ Msg = Stdout{}
-
-func (_ Stdout) Type() MsgType {
-	return stdoutMsgType
-}
-
 type Stderr struct {
 	Data []byte
-}
-
-var _ Msg = Stderr{}
-
-func (_ Stderr) Type() MsgType {
-	return stderrMsgType
 }
 
 type Exit struct {
@@ -77,36 +39,30 @@ type Exit struct {
 	Error    error
 }
 
-var _ Msg = Exit{}
-
-func (_ Exit) Type() MsgType {
-	return exitMsgType
-}
-
 type Writer struct {
 	encoder *gob.Encoder
-	wrap    func([]byte) Msg
+	wrap    func([]byte) interface{}
 }
 
 func NewStdinWriter(w io.Writer) Writer {
-	return newWriter(w, func(p []byte) Msg {
+	return newWriter(w, func(p []byte) interface{} {
 		return Stdin{p}
 	})
 }
 
 func NewStdoutWriter(w io.Writer) Writer {
-	return newWriter(w, func(p []byte) Msg {
+	return newWriter(w, func(p []byte) interface{} {
 		return Stdout{p}
 	})
 }
 
 func NewStderrWriter(w io.Writer) Writer {
-	return newWriter(w, func(p []byte) Msg {
+	return newWriter(w, func(p []byte) interface{} {
 		return Stderr{p}
 	})
 }
 
-func newWriter(w io.Writer, wrap func([]byte) Msg) Writer {
+func newWriter(w io.Writer, wrap func([]byte) interface{}) Writer {
 	return Writer{
 		encoder: gob.NewEncoder(w),
 		wrap:    wrap,
