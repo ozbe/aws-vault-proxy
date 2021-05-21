@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 
@@ -8,7 +9,6 @@ import (
 )
 
 const (
-	defaultCommand = "aws-vault"
 	defaultNetwork = "tcp"
 	defaultPort    = "7654"
 )
@@ -21,7 +21,8 @@ const (
 func main() {
 	c := newConfig()
 
-	err := server.Listen(c)
+	s := server.New(c)
+	err := s.Listen()
 
 	if err != nil {
 		log.Fatal(err)
@@ -29,7 +30,7 @@ func main() {
 }
 
 func newConfig() server.Config {
-	command := defaultCommand
+	var command string
 	if val, ok := os.LookupEnv(commandEnvKey); ok {
 		command = val
 	}
@@ -42,6 +43,6 @@ func newConfig() server.Config {
 	return server.Config{
 		Command: command,
 		Network: defaultNetwork,
-		Port:    port,
+		Address: fmt.Sprintf(":%s", port),
 	}
 }

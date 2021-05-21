@@ -2,55 +2,66 @@ package server
 
 import (
 	"encoding/gob"
-	"fmt"
 	"io"
 	"log"
 	"net"
 	"os/exec"
 
-	"github.com/ozbe/aws-vault-proxy/protocol"
+	"github.com/ozbe/aws-vault-proxy/internal/protocol"
 )
 
 type Config struct {
 	Command string
 	Network string
-	Port    string
+	Address string
 }
 
-func Listen(conf Config) error {
-	l, err := net.Listen(conf.Network, fmt.Sprintf(":%s", conf.Port))
+type Server struct {
+	Config
+}
+
+func New(conf Config) Server {
+	if conf.Command == "" {
+		conf.Command = "aws-vault"
+	}
+	return Server{conf}
+}
+
+// TODO - support deadline and close
+func (s Server) Listen() error {
+	l, err := net.Listen(s.Network, s.Address)
 	if err != nil {
 		return err
 	}
 	defer l.Close()
 
-	log.Printf("Listening at %s\n", conf.Port)
+	log.Printf("Listening at %s\n", s.Address)
 
 	for {
 		conn, err := l.Accept()
 		if err != nil {
 			return err
 		}
-		go handleConnection(conf, conn)
+		go s.handleConnection(conn)
 	}
 }
 
-func handleConnection(conf Config, conn net.Conn) {
-	if err := handleRequest(conf, conn); err != nil {
+func (s Server) handleConnection(conn net.Conn) {
+	if err := s.handleRequest(conn, conn); err != nil {
 		log.Println(err)
 	}
 	conn.Close()
 }
 
-func handleRequest(conf Config, conn net.Conn) error {
-	decoder := gob.NewDecoder(conn)
+func (s Server) handleRequest(w io.Writer, r io.Reader) error {
+	decoder := gob.NewDecoder(r)
 
 	var req protocol.Cmd
 	if err := decoder.Decode(&req); err != nil {
 		return err
 	}
 
-	cmd := exec.Command(conf.Command, req.Args...)
+	cmd := exec.Command(s.Command, req.Args...)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return err
@@ -59,15 +70,15 @@ func handleRequest(conf Config, conn net.Conn) error {
 	stdinWriter := protocol.NewStdinWriter(stdin)
 	go func(w io.Writer, r io.Reader) {
 		io.Copy(w, r)
-	}(stdinWriter, conn)
+	}(stdinWriter, r)
 
-	cmd.Stdout = protocol.NewStdoutWriter(conn)
-	cmd.Stderr = protocol.NewStderrWriter(conn)
+	cmd.Stdout = protocol.NewStdoutWriter(w)
+	cmd.Stderr = protocol.NewStderrWriter(w)
 
 	err = cmd.Run()
 
 	// TODO - determine which errors should go back to the client
-	encoder := gob.NewEncoder(conn)
+	encoder := gob.NewEncoder(w)
 	err = encoder.Encode(&protocol.Exit{
 		ExitCode: cmd.ProcessState.ExitCode(),
 		Error:    nil,

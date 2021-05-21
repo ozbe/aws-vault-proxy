@@ -5,11 +5,6 @@ import (
 	"io"
 )
 
-/*
-The gob encoder is needed across _all_ methods
-maybe make a struct to wrap this all
-*/
-
 func init() {
 	gob.Register(Cmd{})
 	gob.Register(Stdin{})
