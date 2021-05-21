@@ -7,7 +7,7 @@ import (
 	"unicode/utf8"
 )
 
-var envVarRegExp *regexp.Regexp = regexp.MustCompile(`(?m)^\w+\=\w+$`)
+var envVarRegExp = regexp.MustCompile(`(?m)^\w+\=\w+$`)
 
 type FilterAwsEnvWriter struct {
 	inner     io.Writer

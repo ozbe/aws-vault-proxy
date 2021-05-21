@@ -19,9 +19,8 @@ const (
 )
 
 func main() {
-	c := newConfig()
+	s := newServer()
 
-	s := server.New(c)
 	err := s.Listen()
 
 	if err != nil {
@@ -29,7 +28,7 @@ func main() {
 	}
 }
 
-func newConfig() server.Config {
+func newServer() server.Server {
 	var command string
 	if val, ok := os.LookupEnv(commandEnvKey); ok {
 		command = val
@@ -40,7 +39,7 @@ func newConfig() server.Config {
 		port = val
 	}
 
-	return server.Config{
+	return server.Server{
 		Command: command,
 		Network: defaultNetwork,
 		Address: fmt.Sprintf(":%s", port),

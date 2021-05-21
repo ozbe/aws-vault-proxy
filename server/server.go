@@ -10,21 +10,20 @@ import (
 	"github.com/ozbe/aws-vault-proxy/internal/protocol"
 )
 
-type Config struct {
+type Server struct {
 	Command string
 	Network string
 	Address string
 }
 
-type Server struct {
-	Config
-}
+var DefaultCommand = "aws-vault"
 
-func New(conf Config) Server {
-	if conf.Command == "" {
-		conf.Command = "aws-vault"
+func New(network string, address string) Server {
+	return Server{
+		Command: DefaultCommand,
+		Network: network,
+		Address: address,
 	}
-	return Server{conf}
 }
 
 // TODO - support deadline and close

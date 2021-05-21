@@ -84,10 +84,10 @@ func execCmd(conf config, args []string) error {
 func getAwsEnvVars(conf config, profile string) ([]string, error) {
 	w := NewFilterAwsEnvWriter(os.Stdout)
 
-	p := client.New(client.Config{
-		Network: conf.network,
-		Address: fmt.Sprintf("%s:%s", conf.host, conf.port),
-	})
+	p := client.New(
+		conf.network,
+		fmt.Sprintf("%s:%s", conf.host, conf.port),
+	)
 	cmd := p.Cmd("exec", profile, "--", "env")
 	cmd.Stdin = os.Stdin
 	cmd.Stderr = os.Stderr

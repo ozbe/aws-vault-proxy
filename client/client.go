@@ -4,23 +4,20 @@ import (
 	"net"
 )
 
-type Config struct {
+type Client struct {
 	Network string
 	Address string
 }
 
-type Client struct {
-	conf Config
-}
-
-func New(conf Config) Client {
+func New(network string, address string) Client {
 	return Client{
-		conf: conf,
+		Network: network,
+		Address: address,
 	}
 }
 
 func (c Client) connect() (net.Conn, error) {
-	return net.Dial(c.conf.Network, c.conf.Address)
+	return net.Dial(c.Network, c.Address)
 }
 
 func (c Client) Cmd(args ...string) Cmd {
