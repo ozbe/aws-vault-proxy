@@ -9,10 +9,9 @@ import (
 )
 
 func TestAll(t *testing.T) {
-	conf := client.Config{"tcp", ":7654"}
 	args := []string{"exec", "--", "env"}
 
-	c := client.New(conf)
+	c := client.New("tcp", ":7654")
 	cmd := c.Cmd(args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
