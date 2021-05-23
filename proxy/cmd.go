@@ -4,36 +4,7 @@ import (
 	"encoding/gob"
 	"fmt"
 	"io"
-	"net"
-
-	"github.com/ozbe/aws-vault-proxy/protocol"
 )
-
-type Config struct {
-	Network string
-	Address string
-}
-
-type Client struct {
-	conf Config
-}
-
-func NewClient(conf Config) Client {
-	return Client{
-		conf: conf,
-	}
-}
-
-func (c Client) connect() (net.Conn, error) {
-	return net.Dial(c.conf.Network, c.conf.Address)
-}
-
-func (c Client) Cmd(args ...string) Cmd {
-	return Cmd{
-		client: c,
-		args:   args,
-	}
-}
 
 type Cmd struct {
 	client   Client
@@ -51,15 +22,13 @@ func (c *Cmd) Run() error {
 		return err
 	}
 
-	// Send command
-	cmd := protocol.Cmd{
-		Args: c.args,
-	}
+	// Send args
+	args := Args(c.args)
 	encoder := gob.NewEncoder(conn)
-	encoder.Encode(cmd)
+	encoder.Encode(args)
 
 	// Stdin
-	stdin := protocol.NewStdinWriter(conn)
+	stdin := NewStdinWriter(conn)
 	go io.Copy(stdin, c.Stdin)
 
 	// Stdout, stderr, exit
@@ -76,11 +45,11 @@ func (c *Cmd) Run() error {
 		}
 
 		switch m := msg.(type) {
-		case protocol.Stdout:
-			write(c.Stdout, m.Data)
-		case protocol.Stderr:
-			write(c.Stderr, m.Data)
-		case protocol.Exit:
+		case Stdout:
+			write(c.Stdout, m)
+		case Stderr:
+			write(c.Stderr, m)
+		case Exit:
 			c.ExitCode = &m.ExitCode
 			if m.Error != nil {
 				return m.Error

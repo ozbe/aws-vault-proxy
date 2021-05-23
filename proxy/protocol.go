@@ -1,14 +1,9 @@
-package protocol
+package proxy
 
 import (
 	"encoding/gob"
 	"io"
 )
-
-/*
-The gob encoder is needed across _all_ methods
-maybe make a struct to wrap this all
-*/
 
 func init() {
 	gob.Register(Cmd{})
@@ -18,21 +13,13 @@ func init() {
 	gob.Register(Exit{})
 }
 
-type Cmd struct {
-	Args []string
-}
+type Args []string
 
-type Stdin struct {
-	Data []byte
-}
+type Stdin []byte
 
-type Stdout struct {
-	Data []byte
-}
+type Stdout []byte
 
-type Stderr struct {
-	Data []byte
-}
+type Stderr []byte
 
 type Exit struct {
 	ExitCode int
@@ -46,19 +33,19 @@ type Writer struct {
 
 func NewStdinWriter(w io.Writer) Writer {
 	return newWriter(w, func(p []byte) interface{} {
-		return Stdin{p}
+		return Stdin(p)
 	})
 }
 
 func NewStdoutWriter(w io.Writer) Writer {
 	return newWriter(w, func(p []byte) interface{} {
-		return Stdout{p}
+		return Stdout(p)
 	})
 }
 
 func NewStderrWriter(w io.Writer) Writer {
 	return newWriter(w, func(p []byte) interface{} {
-		return Stderr{p}
+		return Stderr(p)
 	})
 }
 

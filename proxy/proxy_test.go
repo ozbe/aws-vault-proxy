@@ -1,17 +1,19 @@
-package proxy
+package proxy_test
 
 import (
 	"os"
 	"testing"
 
+	"github.com/ozbe/aws-vault-proxy/proxy"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestAll(t *testing.T) {
-	conf := Config{"tcp", ":7654"}
 	args := []string{"exec", "--", "env"}
 
-	c := NewClient(conf)
+	// FIXME - start server
+
+	c := proxy.NewClient("tcp", ":7654")
 	cmd := c.Cmd(args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
