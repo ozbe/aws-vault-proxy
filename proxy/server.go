@@ -1,4 +1,4 @@
-package server
+package proxy
 
 import (
 	"encoding/gob"
@@ -6,8 +6,6 @@ import (
 	"log"
 	"net"
 	"os/exec"
-
-	"github.com/ozbe/aws-vault-proxy/internal/protocol"
 )
 
 type Server struct {
@@ -18,7 +16,7 @@ type Server struct {
 
 var DefaultCommand = "aws-vault"
 
-func New(network string, address string) Server {
+func NewServer(network string, address string) Server {
 	return Server{
 		Command: DefaultCommand,
 		Network: network,
@@ -55,33 +53,34 @@ func (s Server) handleConnection(conn net.Conn) {
 func (s Server) handleRequest(w io.Writer, r io.Reader) error {
 	decoder := gob.NewDecoder(r)
 
-	var req protocol.Cmd
-	if err := decoder.Decode(&req); err != nil {
+	var args Args
+	if err := decoder.Decode(&args); err != nil {
 		return err
 	}
 
-	cmd := exec.Command(s.Command, req.Args...)
+	cmd := exec.Command(s.Command, args...)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return err
 	}
 
-	stdinWriter := protocol.NewStdinWriter(stdin)
+	stdinWriter := NewStdinWriter(stdin)
 	go func(w io.Writer, r io.Reader) {
 		io.Copy(w, r)
 	}(stdinWriter, r)
 
-	cmd.Stdout = protocol.NewStdoutWriter(w)
-	cmd.Stderr = protocol.NewStderrWriter(w)
+	cmd.Stdout = NewStdoutWriter(w)
+	cmd.Stderr = NewStderrWriter(w)
 
 	err = cmd.Run()
 
 	// TODO - determine which errors should go back to the client
 	encoder := gob.NewEncoder(w)
-	err = encoder.Encode(&protocol.Exit{
+	var msg interface{} = Exit{
 		ExitCode: cmd.ProcessState.ExitCode(),
 		Error:    nil,
-	})
+	}
+	err = encoder.Encode(&msg)
 
 	return err
 }

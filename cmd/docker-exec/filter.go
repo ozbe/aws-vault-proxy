@@ -8,6 +8,7 @@ import (
 )
 
 var envVarRegExp = regexp.MustCompile(`(?m)^\w+\=\w+$`)
+var awsEnvVarRegExp *regexp.Regexp = regexp.MustCompile(`(?m)^AWS_\w+\=\w+$`)
 
 type FilterAwsEnvWriter struct {
 	inner     io.Writer
@@ -15,8 +16,8 @@ type FilterAwsEnvWriter struct {
 	remainder []byte
 }
 
-func NewFilterAwsEnvWriter(w io.Writer) FilterAwsEnvWriter {
-	return FilterAwsEnvWriter{
+func NewFilterAwsEnvWriter(w io.Writer) *FilterAwsEnvWriter {
+	return &FilterAwsEnvWriter{
 		inner: w,
 	}
 }
@@ -40,7 +41,7 @@ func (w *FilterAwsEnvWriter) filter(atEOF bool) error {
 		w.remainder = w.remainder[a:]
 		if awsEnvVarRegExp.Match(t) {
 			w.env = append(w.env, string(t))
-		} else {
+		} else if !envVarRegExp.Match(t) {
 			_, err = w.inner.Write(t)
 
 			if err != nil {

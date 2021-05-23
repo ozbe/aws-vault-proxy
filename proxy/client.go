@@ -1,4 +1,4 @@
-package client
+package proxy
 
 import (
 	"net"
@@ -9,7 +9,7 @@ type Client struct {
 	Address string
 }
 
-func New(network string, address string) Client {
+func NewClient(network string, address string) Client {
 	return Client{
 		Network: network,
 		Address: address,

@@ -2,13 +2,12 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"log"
+	"net"
 	"os"
 	"os/exec"
-	"regexp"
 
-	"github.com/ozbe/aws-vault-proxy/client"
+	"github.com/ozbe/aws-vault-proxy/proxy"
 )
 
 const (
@@ -21,8 +20,6 @@ const (
 	hostEnvKey = "AWS_VAULT_PROXY_HOST"
 	portEnvKey = "AWS_VAULT_PROXY_PORT"
 )
-
-var awsEnvVarRegExp *regexp.Regexp = regexp.MustCompile(`(?m)^AWS_\w+\=\w+$`)
 
 type config struct {
 	network string
@@ -84,14 +81,14 @@ func execCmd(conf config, args []string) error {
 func getAwsEnvVars(conf config, profile string) ([]string, error) {
 	w := NewFilterAwsEnvWriter(os.Stdout)
 
-	p := client.New(
+	p := proxy.NewClient(
 		conf.network,
-		fmt.Sprintf("%s:%s", conf.host, conf.port),
+		net.JoinHostPort(conf.host, conf.port),
 	)
 	cmd := p.Cmd("exec", profile, "--", "env")
 	cmd.Stdin = os.Stdin
 	cmd.Stderr = os.Stderr
-	cmd.Stdout = &w
+	cmd.Stdout = w
 
 	if err := cmd.Run(); err != nil {
 		return nil, err

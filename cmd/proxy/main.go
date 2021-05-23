@@ -1,11 +1,11 @@
 package main
 
 import (
-	"fmt"
 	"log"
+	"net"
 	"os"
 
-	"github.com/ozbe/aws-vault-proxy/server"
+	"github.com/ozbe/aws-vault-proxy/proxy"
 )
 
 const (
@@ -20,7 +20,6 @@ const (
 
 func main() {
 	s := newServer()
-
 	err := s.Listen()
 
 	if err != nil {
@@ -28,7 +27,7 @@ func main() {
 	}
 }
 
-func newServer() server.Server {
+func newServer() proxy.Server {
 	var command string
 	if val, ok := os.LookupEnv(commandEnvKey); ok {
 		command = val
@@ -39,9 +38,9 @@ func newServer() server.Server {
 		port = val
 	}
 
-	return server.Server{
+	return proxy.Server{
 		Command: command,
 		Network: defaultNetwork,
-		Address: fmt.Sprintf(":%s", port),
+		Address: net.JoinHostPort("", port),
 	}
 }
