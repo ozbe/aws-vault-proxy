@@ -10,28 +10,28 @@ import (
 var envVarRegExp = regexp.MustCompile(`(?m)^\w+\=\w+$`)
 var awsEnvVarRegExp *regexp.Regexp = regexp.MustCompile(`(?m)^AWS_\w+\=\w+$`)
 
-type FilterAwsEnvWriter struct {
+type filterAwsEnvWriter struct {
 	inner     io.Writer
 	env       []string
 	remainder []byte
 }
 
-func NewFilterAwsEnvWriter(w io.Writer) *FilterAwsEnvWriter {
-	return &FilterAwsEnvWriter{
+func newFilterAwsEnvWriter(w io.Writer) *filterAwsEnvWriter {
+	return &filterAwsEnvWriter{
 		inner: w,
 	}
 }
 
-func (w *FilterAwsEnvWriter) Write(p []byte) (int, error) {
+func (w *filterAwsEnvWriter) Write(p []byte) (int, error) {
 	w.remainder = append(w.remainder, p...)
 	return len(p), w.filter(false)
 }
 
-func (w *FilterAwsEnvWriter) Close() error {
+func (w *filterAwsEnvWriter) Close() error {
 	return w.filter(true)
 }
 
-func (w *FilterAwsEnvWriter) filter(atEOF bool) error {
+func (w *filterAwsEnvWriter) filter(atEOF bool) error {
 	for {
 		a, t, err := scanWordsWithLeadingAndOneTrailingSpace(w.remainder, atEOF)
 		if err != nil || t == nil {
@@ -51,7 +51,7 @@ func (w *FilterAwsEnvWriter) filter(atEOF bool) error {
 	}
 }
 
-func (w FilterAwsEnvWriter) Env() []string {
+func (w filterAwsEnvWriter) Env() []string {
 	return w.env
 }
 

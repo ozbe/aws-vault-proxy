@@ -79,7 +79,7 @@ func execCmd(conf config, args []string) error {
 }
 
 func getAwsEnvVars(conf config, profile string) ([]string, error) {
-	w := NewFilterAwsEnvWriter(os.Stdout)
+	w := newFilterAwsEnvWriter(os.Stdout)
 
 	p := proxy.NewClient(
 		conf.network,
