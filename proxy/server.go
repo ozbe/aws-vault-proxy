@@ -9,28 +9,33 @@ import (
 )
 
 type Server struct {
-	Command string
-	Network string
-	Address string
+	Command  string
+	Network  string
+	Address  string
+	listener net.Listener
 }
 
 var DefaultCommand = "aws-vault"
 
-func NewServer(network string, address string) Server {
-	return Server{
+func NewServer(network string, address string) *Server {
+	return &Server{
 		Command: DefaultCommand,
+		// TODO - change to ListenConfig
 		Network: network,
 		Address: address,
 	}
 }
 
-// TODO - support deadline and close
-func (s Server) Listen() error {
+func (s *Server) Listen() error {
+	if s.listener != nil {
+		return nil
+	}
+
 	l, err := net.Listen(s.Network, s.Address)
 	if err != nil {
 		return err
 	}
-	defer l.Close()
+	s.listener = l
 
 	log.Printf("Listening at %s\n", s.Address)
 
@@ -41,6 +46,16 @@ func (s Server) Listen() error {
 		}
 		go s.handleConnection(conn)
 	}
+}
+
+func (s *Server) Close() error {
+	if s.listener == nil {
+		return nil
+	}
+
+	err := s.listener.Close()
+	s.listener = nil
+	return err
 }
 
 func (s Server) handleConnection(conn net.Conn) {

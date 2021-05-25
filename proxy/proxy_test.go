@@ -1,6 +1,7 @@
 package proxy_test
 
 import (
+	"net"
 	"os"
 	"testing"
 
@@ -8,12 +9,25 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	defaultTestCommand = "../bin/fake-vault"
+)
+
 func TestAll(t *testing.T) {
+	network := "tcp"
+	host := ""
+	port := "7654"
 	args := []string{"exec", "--", "env"}
 
-	// FIXME - start server
+	s := &proxy.Server{
+		Command: defaultTestCommand,
+		Network: network,
+		Address: net.JoinHostPort(host, port),
+	}
+	go s.Listen()
+	defer s.Close()
 
-	c := proxy.NewClient("tcp", ":7654")
+	c := proxy.NewClient(network, net.JoinHostPort(host, port))
 	cmd := c.Cmd(args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
