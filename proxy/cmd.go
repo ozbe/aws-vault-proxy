@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"encoding/gob"
+	"errors"
 	"fmt"
 	"io"
 )
@@ -51,8 +52,8 @@ func (c *Cmd) Run() error {
 			write(c.Stderr, m)
 		case Exit:
 			c.ExitCode = &m.ExitCode
-			if m.Error != nil {
-				return m.Error
+			if m.Error != "" {
+				return errors.New(m.Error)
 			}
 		default:
 			return fmt.Errorf("unexpected msg: %v", m)

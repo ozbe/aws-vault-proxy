@@ -4,6 +4,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/exec"
 
 	"github.com/ozbe/aws-vault-proxy/proxy"
 )
@@ -20,7 +21,8 @@ const (
 
 func main() {
 	s := newServer()
-	err := s.Listen()
+	err := s.Run()
+	defer s.Close()
 
 	if err != nil {
 		log.Fatal(err)
@@ -28,9 +30,9 @@ func main() {
 }
 
 func newServer() proxy.Server {
-	var command string
+	command := proxy.DefaultCommand
 	if val, ok := os.LookupEnv(commandEnvKey); ok {
-		command = val
+		command = customCommand(val)
 	}
 
 	port := defaultPort
@@ -42,5 +44,11 @@ func newServer() proxy.Server {
 		Command: command,
 		Network: defaultNetwork,
 		Address: net.JoinHostPort("", port),
+	}
+}
+
+func customCommand(name string) proxy.Command {
+	return func(args ...string) *exec.Cmd {
+		return exec.Command(name, args...)
 	}
 }

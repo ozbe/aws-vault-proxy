@@ -23,7 +23,7 @@ type Stderr []byte
 
 type Exit struct {
 	ExitCode int
-	Error    error
+	Error    string
 }
 
 type Writer struct {
