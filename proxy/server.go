@@ -2,42 +2,73 @@ package proxy
 
 import (
 	"encoding/gob"
+	"fmt"
 	"io"
 	"log"
 	"net"
+	"os"
 	"os/exec"
 )
 
 type Server struct {
-	Command string
-	Network string
-	Address string
+	Command  Command
+	Network  string
+	Address  string
+	listener net.Listener
 }
 
-var DefaultCommand = "aws-vault"
+func DefaultCommand(args ...string) *exec.Cmd {
+	return exec.Command("aws-vault", args...)
+}
 
-func NewServer(network string, address string) Server {
-	return Server{
+type Command func(args ...string) *exec.Cmd
+
+func NewServer(network string, address string) *Server {
+	return &Server{
 		Command: DefaultCommand,
 		Network: network,
 		Address: address,
 	}
 }
 
-// TODO - support deadline and close
-func (s Server) Listen() error {
+func (s *Server) Run() error {
+	if s.listener != nil {
+		return nil
+	}
+
 	l, err := net.Listen(s.Network, s.Address)
 	if err != nil {
 		return err
 	}
-	defer l.Close()
+	s.listener = l
 
 	log.Printf("Listening at %s\n", s.Address)
 
+	go s.handleConnections()
+
+	return nil
+}
+
+func (s *Server) Close() error {
+	if s.listener == nil {
+		return nil
+	}
+
+	err := s.listener.Close()
+	s.listener = nil
+	return err
+}
+
+func (s *Server) handleConnections() {
 	for {
-		conn, err := l.Accept()
+		if s.listener == nil {
+			return
+		}
+
+		conn, err := s.listener.Accept()
 		if err != nil {
-			return err
+			fmt.Fprintln(os.Stderr, err)
+			return
 		}
 		go s.handleConnection(conn)
 	}
@@ -45,7 +76,7 @@ func (s Server) Listen() error {
 
 func (s Server) handleConnection(conn net.Conn) {
 	if err := s.handleRequest(conn, conn); err != nil {
-		log.Println(err)
+		fmt.Fprintln(os.Stderr, err)
 	}
 	conn.Close()
 }
@@ -58,7 +89,7 @@ func (s Server) handleRequest(w io.Writer, r io.Reader) error {
 		return err
 	}
 
-	cmd := exec.Command(s.Command, args...)
+	cmd := s.Command(args...)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return err
@@ -72,13 +103,16 @@ func (s Server) handleRequest(w io.Writer, r io.Reader) error {
 	cmd.Stdout = NewStdoutWriter(w)
 	cmd.Stderr = NewStderrWriter(w)
 
-	err = cmd.Run()
+	var error string
+	if err = cmd.Run(); err != nil {
+		error = err.Error()
+	}
 
 	// TODO - determine which errors should go back to the client
 	encoder := gob.NewEncoder(w)
 	var msg interface{} = Exit{
 		ExitCode: cmd.ProcessState.ExitCode(),
-		Error:    nil,
+		Error:    error,
 	}
 	err = encoder.Encode(&msg)
 
