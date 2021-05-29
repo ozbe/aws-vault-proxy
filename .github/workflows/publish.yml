@@ -12,7 +12,7 @@ jobs:
       matrix:
         project_path: ["./cmd/proxy", "./cmd/docker-exec"]
         goos: [linux, windows, darwin]
-        goarch: amd64
+        goarch: [amd64]
         exclude:
           - project_path: "./cmd/docker-exec"
             goos: windows
